@@ -56,11 +56,12 @@ public class Foot {
 					String scDomi =  Clavier.saisirString();
 					Ecran.afficher("score ext : \n");
 					String scExt =  Clavier.saisirString();
-					if(BD.executerSelect(connexion, "SELECT * FROM `match`WHERE maID = '"+maID+"' ")>=0)
+					if(!(eqDomi.equals(eqExt))){
+					//if(BD.executerSelect(connexion, "SELECT * FROM `match`WHERE maID = '"+maID+"' ")>=0)
 						BD.executerUpdate(connexion,"INSERT INTO `claudel_BD`.`match` (`maID`, `maEquipe1`, `maEquipe2`, `maScoreEquipe1`, `maScoreEquipe2`) VALUES ('"+maID+"', '"+eqDomi+"', '"+eqExt+"', '"+scDomi+"', '"+scExt+"');");
-					
-					
-					
+					}else{
+						Ecran.afficher("Erreur! Une équipe ne peu pas s'affronter elle-même! \n");
+					}
 				}
 			}while(modif != 'n');
 		}
