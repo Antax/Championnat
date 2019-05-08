@@ -1,6 +1,7 @@
 public class Foot {
 	
 	static class equipe{
+		String nom;
 		String ID;
 		//ce booléen permet de savoir si une équipe est déjà inscrite dans un match.
 		//il est utile lors de la randomisation de 
@@ -11,6 +12,12 @@ public class Foot {
 		//le 3ème huitième de finale. si match=9, cela correspond au premier quart de finale...
 		//Cela nous permet de savoir quelles équipes devront s'affronter
 		int match;
+		int difButs;
+		int butM;
+		int butE;
+		int nbVictoires;
+		int nbDefaites;
+		int nbEgalites;
 	}
 
 	static boolean coPossible(String log,String mdp,int co){
@@ -43,14 +50,104 @@ public class Foot {
 			tabEquipe[indiceEquipe2].match = i;
 		}
 	}
+
+	//cette fonction permet de savoir dans quel match se situera une équipe si elle gagne un match
+	static int prochainMatchEquipe(int matchDeDepart){
+		int match = 0;
+		switch (matchDeDepart){
+			case 1 :
+			case 2 :
+				match= 9;
+			break;
+			case 3 :
+			case 4 :
+				match=10;
+			break;
+			case 5 :
+			case 6 :
+				match=11;
+			break;
+			case 7 :
+			case 8 :
+				match= 12;
+			break;
+			case 9 :
+			case 11 :
+				match= 13;
+			break;
+			case 10:
+			case 12:
+				match= 14;
+			break;
+			case 13:
+			case 14: 
+				match= 15;
+			break;
+			//nous permettra de savoir qui a gagné la finale.
+			case 15:
+				match= 16;
+			break;
+		}
+		return match;
+	}
+
+
+	//cette fonction permet à l'admin de renseigner le score d'un match
+	//il n'a pas à sélectionner le match, cela se fait automatiquement
+	static void renseignerMatch(int connexion,int numMatch, equipe[] tabEquipe){
+		//on cherche les équipes qui participent au match numMatch
+		int indiceEquipe1;
+		int indiceEquipe2;
+		int i =0;
+		while (tabEquipe[i].match!=numMatch){
+			i++;
+		}
+		indiceEquipe1=i;
+		i++;
+		while (tabEquipe[i].match!=numMatch){
+			i++;
+		}
+		indiceEquipe2=i;
+
+		//Saisie des Scores
+		Ecran.afficher("Saisissez le score du match ",tabEquipe[indiceEquipe1].nom," / ",tabEquipe[indiceEquipe2].nom,"\n");
+		Ecran.afficher(tabEquipe[indiceEquipe1].nom," : ");
+		int butEq1 = Clavier.saisirInt();
+		Ecran.afficher(tabEquipe[indiceEquipe2].nom," : ");
+		int butEq2 = Clavier.saisirInt();
+
+		BD.executerUpdate(connexion,"INSERT INTO `match` (`maID`, `maEquipe1`, `maEquipe2`, `maScoreEquipe1`, `maScoreEquipe2`) VALUES ('"+numMatch+"', '"+tabEquipe[indiceEquipe1].ID+"', '"+tabEquipe[indiceEquipe2].ID+"', '"+butEq1+"', '"+butEq2+"');");
+
+		//vérification du vainqueur
+		if (butEq1==butEq2){
+			//le gagnant est choisi au hasard...
+			if (Math.random()>0.5){
+				tabEquipe[indiceEquipe1].match=prochainMatchEquipe(tabEquipe[indiceEquipe1].match);
+			}else{
+				tabEquipe[indiceEquipe2].match=prochainMatchEquipe(tabEquipe[indiceEquipe1].match);
+			}
+		}
+
+		if (butEq1>butEq2){
+			//l'équipe 1 passe au prochain tour
+			tabEquipe[indiceEquipe1].match=prochainMatchEquipe(tabEquipe[indiceEquipe1].match);
+		}
+
+		if (butEq2>butEq1){
+			//l'équipe 2 passe au prochain tour
+			tabEquipe[indiceEquipe2].match=prochainMatchEquipe(tabEquipe[indiceEquipe1].match);
+		}
+	}
     
     public static void main(String[] args) {
+		Ecran.afficher();
 	    int l=0 ;
 	    //int connexion= BD.ouvrirConnexion("172.20.128.64","claudel_BD","claudel","claudel");
         int connexion = BD.ouvrirConnexion("localhost", "Championnat", "root", "");
         //Co connexion = new Co();
 	    String log = "";
 		String mdp = "";
+
 		
 		int resEquipe = BD.executerSelect(connexion, "SELECT * FROM equipe");
 
@@ -62,17 +159,22 @@ public class Foot {
 		while (BD.suivant(resEquipe)) {
 			tabEquipe[creerEquipe]=new equipe();
 			tabEquipe[creerEquipe].ID = BD.attributString(resEquipe,"equipe.eqID");
+			tabEquipe[creerEquipe].nom = BD.attributString(resEquipe,"equipe.eqNom");
 			tabEquipe[creerEquipe].dejaChoisie = false;
 			tabEquipe[creerEquipe].points=0;
 			creerEquipe++;
 		}
+		resEquipe = BD.executerSelect(connexion, "SELECT * FROM equipe");
 		
 
 		journeeRandom(tabEquipe);
+		//Pour vérifier si la randomisation est correct
 		for (int i =0;i<16;i++){
 			Ecran.afficher(tabEquipe[i].ID," match  n°",tabEquipe[i].match,"\n");
 		}
-	    
+		for (int i=0;i<16;i++){
+			Ecran.afficher(tabEquipe[i].nom," : ",tabEquipe[i].match," \n");
+		}
 	    
 	    do{
 		if(l==0)
@@ -94,42 +196,31 @@ public class Foot {
 		
 	    Ecran.afficher("Equipes pouvant participer au championnat : \n");
 	    while (BD.suivant(resEquipe)) {
-			Ecran.afficher("Equipe n°",BD.attributString(resEquipe,"equipe.eqID"),"      nom : ", BD.attributString(resEquipe,"equipe.eqNom"));
+			Ecran.afficher("Equipe n°",BD.attributString(resEquipe,"equipe.eqID"),"    nom : ", BD.attributString(resEquipe,"equipe.eqNom"));
 			Ecran.sautDeLigne();
 		}
 
 	
-
+		int quelMatch;
 		char modif=' ';
 		if (log.equals("admin")){
 			do{
-				Ecran.afficher("Voulez vous modifier les journées / résultat ( o : oui , n : non ) : \n");
+				Ecran.afficher("Voulez vous renseigner les résultats d'un match ( o : oui , n : non ) : \n");
 				modif =  Clavier.saisirChar();
 				if (modif != 'n'){
-					Ecran.afficher("ID : \n");
-					String maID =  Clavier.saisirString();
-					Ecran.afficher("equipe domicile : \n");
-					String eqDomi =  Clavier.saisirString();
-					Ecran.afficher("equipe ext  : \n");
-					String eqExt =  Clavier.saisirString();
-					Ecran.afficher("score domi : \n");
-					String scDomi =  Clavier.saisirString();
-					Ecran.afficher("score ext : \n");
-					String scExt =  Clavier.saisirString();
-					if(!(eqDomi.equals(eqExt))){
-					//if(BD.executerSelect(connexion, "SELECT * FROM `match`WHERE maID = '"+maID+"' ")>=0)
-						BD.executerUpdate(connexion,"INSERT INTO `match` (`maID`, `maEquipe1`, `maEquipe2`, `maScoreEquipe1`, `maScoreEquipe2`) VALUES ('"+maID+"', '"+eqDomi+"', '"+eqExt+"', '"+scDomi+"', '"+scExt+"');");
-					}else{
-						Ecran.afficher("Erreur! Une équipe ne peu pas s'affronter elle-même! \n");
-					}
+					do{
+						Ecran.afficher("Quel match voulez vous renseigner? (de 1 à 15) \n");
+						quelMatch =  Clavier.saisirInt();
+						renseignerMatch(connexion,quelMatch,tabEquipe);
+						for (int i=0;i<16;i++){
+							Ecran.afficher(tabEquipe[i].nom," : ",tabEquipe[i].match," \n");
+						}
+						Ecran.afficher("Voulez vous renseigner un autre match? ( o : oui , n : non ) \n");
+						modif = Clavier.saisirChar();
+					}while(modif != 'n');
 				}
 			}while(modif != 'n');
 		}
     }
-   
-
-
   
-    
-    
 }
