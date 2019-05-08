@@ -116,7 +116,7 @@ public class Foot {
 		Ecran.afficher(tabEquipe[indiceEquipe2].nom," : ");
 		int butEq2 = Clavier.saisirInt();
 
-		BD.executerUpdate(connexion,"INSERT INTO `match` (`maID`, `maEquipe1`, `maEquipe2`, `maScoreEquipe1`, `maScoreEquipe2`) VALUES ('"+numMatch+"', '"+tabEquipe[indiceEquipe1].ID+"', '"+tabEquipe[indiceEquipe2].ID+"', '"+butEq1+"', '"+butEq2+"');");
+		BD.executerUpdate(connexion,"INSERT INTO `matchs` (`maID`, `maEquipe1`, `maEquipe2`, `maScoreEquipe1`, `maScoreEquipe2`) VALUES ('"+numMatch+"', '"+tabEquipe[indiceEquipe1].ID+"', '"+tabEquipe[indiceEquipe2].ID+"', '"+butEq1+"', '"+butEq2+"');");
 
 		//vérification du vainqueur
 		if (butEq1==butEq2){
@@ -138,9 +138,57 @@ public class Foot {
 			tabEquipe[indiceEquipe2].match=prochainMatchEquipe(tabEquipe[indiceEquipe1].match);
 		}
 	}
-    
+
+	//cette fonction va, pour une équipe, piocher dans la base de données le nombre de matchs gagnés, de buts marqués, de points... 
+	//afin d'actualiser la variable de type Equipe
+	static void actualiserVariables(equipe[] tabEquipe, int ID,  int connexion){
+		int resMatch = BD.executerSelect(connexion, "SELECT * FROM matchs");
+		while (BD.suivant(resMatch)) {
+			//On cherche les matchs dans lesquels l'équipe d'id ID a participé
+			if ((BD.attributInt(resMatch,"matchs.maEquipe1"))==ID){
+				tabEquipe[ID].butM=BD.attributInt(resMatch,"matchs.maScoreEquipe1");
+				tabEquipe[ID].butE=BD.attributInt(resMatch,"matchs.maScoreEquipe2");
+				//l'équipe a-t-elle gagnée? perdu? fait égalité?
+				if(BD.attributInt(resMatch,"matchs.maScoreEquipe1")==BD.attributInt(resMatch,"matchs.maScoreEquipe2")){
+					tabEquipe[ID].nbEgalites++;
+				}
+				if(BD.attributInt(resMatch,"match.maScoreEquipe1")<BD.attributInt(resMatch,"matchs.maScoreEquipe2")){
+					tabEquipe[ID].nbDefaites++;
+				}
+				if(BD.attributInt(resMatch,"matchs.maScoreEquipe1")>BD.attributInt(resMatch,"match.maScoreEquipe2")){
+					tabEquipe[ID].nbVictoires++;
+				}
+			}
+			if ((BD.attributInt(resMatch,"matchs.maEquipe2"))==ID){
+				tabEquipe[ID].butM=tabEquipe[ID].butM+BD.attributInt(resMatch,"matchs.maScoreEquipe2");
+				tabEquipe[ID].butE=tabEquipe[ID].butE+BD.attributInt(resMatch,"matchs.maScoreEquipe1");
+				//l'équipe a-t-elle gagnée? perdu? fait égalité?
+				if(BD.attributInt(resMatch,"matchs.maScoreEquipe2")==BD.attributInt(resMatch,"matchs.maScoreEquipe1")){
+					tabEquipe[ID].nbEgalites++;
+				}
+				if(BD.attributInt(resMatch,"matchs.maScoreEquipe2")<BD.attributInt(resMatch,"matchs.maScoreEquipe1")){
+					tabEquipe[ID].nbDefaites++;
+				}
+				if(BD.attributInt(resMatch,"matchs.maScoreEquipe2")>BD.attributInt(resMatch,"matchs.maScoreEquipe1")){
+					tabEquipe[ID].nbVictoires++;
+				}
+			}
+		}
+		resMatch = BD.executerSelect(connexion, "SELECT * FROM matchs");
+	}
+
+	//renvoie la différence de but pour une équipe
+	static int differenceButs(int ID, equipe[] tabEquipe){
+		return tabEquipe[ID].butM-tabEquipe[ID].butE;
+	}
+
+	//calcule le nombre de points d'une équipe
+    static int nbPoints(int ID, equipe[] tabEquipe){
+		return (tabEquipe[ID].nbVictoires)*3+tabEquipe[ID].nbEgalites;
+	}
+
     public static void main(String[] args) {
-		Ecran.afficher();
+		boolean run =true;
 	    int l=0 ;
 	    //int connexion= BD.ouvrirConnexion("172.20.128.64","claudel_BD","claudel","claudel");
         int connexion = BD.ouvrirConnexion("localhost", "Championnat", "root", "");
@@ -150,6 +198,7 @@ public class Foot {
 
 		
 		int resEquipe = BD.executerSelect(connexion, "SELECT * FROM equipe");
+		int resMatch = BD.executerSelect(connexion, "SELECT * FROM matchs");
 
 		//association des enregistrements d'équipe à des variables de type équipe, elles-mêmes stockées dans un tableau.
 		//il y aura 16 équipes
@@ -169,12 +218,12 @@ public class Foot {
 
 		journeeRandom(tabEquipe);
 		//Pour vérifier si la randomisation est correct
-		for (int i =0;i<16;i++){
+		/*for (int i =0;i<16;i++){
 			Ecran.afficher(tabEquipe[i].ID," match  n°",tabEquipe[i].match,"\n");
 		}
 		for (int i=0;i<16;i++){
 			Ecran.afficher(tabEquipe[i].nom," : ",tabEquipe[i].match," \n");
-		}
+		}*/
 	    
 	    do{
 		if(l==0)
@@ -203,24 +252,40 @@ public class Foot {
 	
 		int quelMatch;
 		char modif=' ';
-		if (log.equals("admin")){
-			do{
-				Ecran.afficher("Voulez vous renseigner les résultats d'un match ( o : oui , n : non ) : \n");
-				modif =  Clavier.saisirChar();
-				if (modif != 'n'){
-					do{
-						Ecran.afficher("Quel match voulez vous renseigner? (de 1 à 15) \n");
-						quelMatch =  Clavier.saisirInt();
-						renseignerMatch(connexion,quelMatch,tabEquipe);
-						for (int i=0;i<16;i++){
-							Ecran.afficher(tabEquipe[i].nom," : ",tabEquipe[i].match," \n");
-						}
-						Ecran.afficher("Voulez vous renseigner un autre match? ( o : oui , n : non ) \n");
-						modif = Clavier.saisirChar();
-					}while(modif != 'n');
-				}
-			}while(modif != 'n');
-		}
+		while(run){
+			if (log.equals("admin")){
+				do{
+					Ecran.afficher("Voulez vous renseigner les résultats d'un match ( o : oui , n : non ) : \n");
+					modif =  Clavier.saisirChar();
+					if (modif != 'n'){
+						do{
+							Ecran.afficher("Quel match voulez vous renseigner? (de 1 à 15) \n");
+							quelMatch =  Clavier.saisirInt();
+							renseignerMatch(connexion,quelMatch,tabEquipe);
+							for (int i=0;i<16;i++){
+								Ecran.afficher(tabEquipe[i].nom," : ",tabEquipe[i].match," \n");
+							}
+							Ecran.afficher("Voulez vous renseigner un autre match? ( o : oui , n : non ) \n");
+							modif = Clavier.saisirChar();
+						}while(modif != 'n');
+					}
+				}while(modif != 'n');
+			}
+			Ecran.afficher("Voulez vous quitter l'application? (oui = o, non = n) \n");
+			char quit = Clavier.saisirChar();
+			if (quit=='o'){
+				run=false;
+			}
+			for(int i =0;i<16;i++){
+				actualiserVariables(tabEquipe, i, connexion);
+				Ecran.afficher("L'équipe ",i," a gagné ",tabEquipe[i].nbVictoires," fois.\n");
+				Ecran.afficher("L'équipe ",i," a perdu ",tabEquipe[i].nbDefaites," fois.\n");
+				Ecran.afficher("L'équipe ",i," a fait égalité ",tabEquipe[i].nbEgalites," fois.\n \n");
+
+			}
+			
+			
+		}	
     }
   
 }
